@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Sports Predictor Pro - AI-Powered Sports Predictions</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <meta name="description"
+        content="AI-powered sports predictions with in-depth analysis, real-time data, and expert insights for football, basketball, tennis, and more">
+</head>
+
+<body>
+    <div class="app">
+        <!-- Animated Background -->
+        <div class="animated-bg"></div>
+
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo-section">
+                    <div class="logo-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="logo-text">
+                        <h1>Sports Predictor Pro</h1>
+                        <p>AI-Powered Sports Analytics | In-Depth Match Analysis</p>
+                    </div>
+                </div>
+                <div class="header-stats">
+                    <div class="stat-card">
+                        <i class="fas fa-calendar"></i>
+                        <span id="currentDate"></span>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-globe"></i>
+                        <span>Nairobi (EAT)</span>
+                    </div>
+                    <div class="stat-card">
+                        <i class="fas fa-clock"></i>
+                        <span id="currentTime"></span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Stats Dashboard -->
+        <div class="stats-dashboard">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-icon"><i class="fas fa-futbol"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="footballCount">0</div>
+                        <div class="stat-label">Football</div>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon"><i class="fas fa-basketball"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="basketballCount">0</div>
+                        <div class="stat-label">Basketball</div>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon"><i class="fas fa-table-tennis"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="tableTennisCount">0</div>
+                        <div class="stat-label">Table Tennis</div>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon"><i class="fas fa-volleyball-ball"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="volleyballCount">0</div>
+                        <div class="stat-label">Volleyball</div>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon"><i class="fas fa-hand-peace"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="handballCount">0</div>
+                        <div class="stat-label">Handball</div>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon"><i class="fas fa-tennis-ball"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="tennisCount">0</div>
+                        <div class="stat-label">Tennis</div>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon"><i class="fas fa-star"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="bestPicksCount">0</div>
+                        <div class="stat-label">Elite Picks (90%+)</div>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="totalPredictions">0</div>
+                        <div class="stat-label">Total Predictions</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bet of the Day Section -->
+        <div class="bet-day-section">
+            <div class="section-header">
+                <h2><i class="fas fa-crown"></i> Bet of the Day</h2>
+                <span class="live-badge">Editor's Pick</span>
+            </div>
+            <div id="betOfTheDay" class="bet-day-container">
+                <div class="loading-pulse">
+                    <div class="loading-spinner-small"></div>
+                    <p>Loading bet of the day...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Match of the Day Section -->
+        <div class="matches-day-section">
+            <div class="section-header">
+                <h2><i class="fas fa-trophy"></i> Match of the Day</h2>
+                <span class="live-badge">Featured Matches</span>
+            </div>
+            <div class="matches-day-grid" id="matchesDayGrid">
+                <div class="loading-pulse">
+                    <div class="loading-spinner-small"></div>
+                    <p>Loading featured matches...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Generated Accumulator Section -->
+        <div class="accumulator-recommendations-section">
+            <div class="section-header">
+                <h2><i class="fas fa-layer-group"></i> Smart Accumulator</h2>
+                <span class="live-badge">AI-Optimized</span>
+            </div>
+            <div id="accumulatorRecommendations" class="accumulator-recommendations-container">
+                <div class="loading-pulse">
+                    <div class="loading-spinner-small"></div>
+                    <p>Generating optimal accumulator...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs Navigation -->
+        <div class="tabs-navigation">
+            <button class="tab-btn active" data-sport="all">
+                <i class="fas fa-fire"></i> All Predictions
+            </button>
+            <button class="tab-btn" data-sport="best">
+                <i class="fas fa-trophy"></i> Elite Picks (90%+)
+            </button>
+            <button class="tab-btn" data-sport="football">
+                <i class="fas fa-futbol"></i> Football
+            </button>
+            <button class="tab-btn" data-sport="basketball">
+                <i class="fas fa-basketball"></i> Basketball
+            </button>
+            <button class="tab-btn" data-sport="tennis">
+                <i class="fas fa-tennis-ball"></i> Tennis
+            </button>
+            <button class="tab-btn" data-sport="volleyball">
+                <i class="fas fa-volleyball-ball"></i> Volleyball
+            </button>
+            <button class="tab-btn" data-sport="tabletennis">
+                <i class="fas fa-table-tennis"></i> Table Tennis
+            </button>
+            <button class="tab-btn" data-sport="handball">
+                <i class="fas fa-hand-peace"></i> Handball
+            </button>
+        </div>
+
+        <!-- Sort Controls -->
+        <div class="sort-controls">
+            <div class="sort-label">
+                <i class="fas fa-sort-amount-down"></i> Sort by:
+            </div>
+            <div class="sort-buttons">
+                <button class="sort-btn active" data-sort="probability">
+                    <i class="fas fa-chart-line"></i> Probability
+                </button>
+                <button class="sort-btn" data-sort="confidence">
+                    <i class="fas fa-star"></i> Confidence
+                </button>
+                <button class="sort-btn" data-sort="time">
+                    <i class="fas fa-clock"></i> Match Time
+                </button>
+            </div>
+        </div>
+
+        <!-- Predictions Container -->
+        <div class="predictions-container" id="predictionsContainer">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <p>Fetching real-time sports data...</p>
+                <small>Loading Football, Basketball, Tennis, Volleyball, Table Tennis, Handball</small>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <div class="footer-info">
+                    <i class="fas fa-chart-simple"></i>
+                    <span>Powered by real-time data from official sports APIs</span>
+                </div>
+                <div class="footer-update">
+                    <i class="fas fa-sync-alt"></i>
+                    <span>Last updated: <span id="lastUpdate">--:--:--</span></span>
+                </div>
+                <div class="footer-disclaimer">
+                    <i class="fas fa-shield-alt"></i>
+                    <span>Predictions are for entertainment purposes only. Always gamble responsibly.</span>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Modal for Detailed Match Analysis -->
+    <div id="analysisModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="analysisModalTitle">Match Analysis</h3>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body" id="analysisModalBody">
+                <div class="loading-spinner-small"></div>
+                <p style="text-align: center;">Loading in-depth match analysis...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for External Predictions -->
+    <div id="predictionModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Expert Tips & Predictions</h3>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <div class="loading-spinner-small"></div>
+                <p style="text-align: center;">Loading predictions from expert tipsters...</p>
+            </div>
+            <div class="modal-footer">
+                <small>Tips from verified sources • Updated in real-time</small>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
