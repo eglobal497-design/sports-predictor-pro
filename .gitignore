@@ -1,7 +1,6 @@
 node_modules/
 .env
-.env.local
+data/
 *.log
-data/*.db
-data/*.db-journal
 .DS_Store
+*.db

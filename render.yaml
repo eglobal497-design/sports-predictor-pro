@@ -1,18 +1,20 @@
 services:
   - type: web
     name: sports-predictor-pro
-    env: node
+    runtime: node
+    plan: free
     buildCommand: cd backend && npm install
-    startCommand: cd backend && npm start
+    startCommand: cd backend && node src/server.js
     envVars:
-      - key: NODE_VERSION
-        value: 18.17.0
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
       - key: RAPIDAPI_KEY
         sync: false
       - key: RAPIDAPI_HOST
-        sync: false
+        value: api-football-v1.p.rapidapi.com
       - key: THEODDS_API_KEY
         sync: false
       - key: FOOTBALL_API_KEY
         sync: false
-    plan: free

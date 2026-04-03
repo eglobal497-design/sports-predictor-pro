@@ -1,25 +1,15 @@
 const app = require('./app');
-const config = require('./config');
 const logger = require('./utils/logger');
 const database = require('./db/database');
-const path = require('path');
-const fs = require('fs');
 
-// Ensure data directory exists
-const dataDir = path.join(__dirname, '../data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-  logger.info('Created data directory');
-}
+// Get port from environment variable (Render sets this)
+const PORT = process.env.PORT || 3000;
 
 async function startServer() {
   try {
-    // Initialize database
+    // Initialize database (will use memory or file-based depending on environment)
     await database.initialize();
     logger.info('Database initialized');
-
-    // Get port from environment or config
-    const PORT = process.env.PORT || config.port || 3000;
 
     // Start server
     const server = app.listen(PORT, '0.0.0.0', () => {
@@ -32,7 +22,9 @@ async function startServer() {
       logger.info(`🤖 AI Features: Enabled (Fallback Mode)`);
       logger.info(`📊 Accuracy Tracking: Active`);
       logger.info(`💡 Insights Engine: Running`);
-      logger.info(`🌐 Public URL: ${process.env.RENDER_EXTERNAL_URL || 'http://localhost:' + PORT}`);
+      logger.info(`🎯 Dual Accumulators: 3x & 12x`);
+      logger.info(`🌍 Timezone: Africa/Nairobi (EAT)`);
+      logger.info(`💰 Currency: UGX`);
       logger.info('='.repeat(60));
     });
 

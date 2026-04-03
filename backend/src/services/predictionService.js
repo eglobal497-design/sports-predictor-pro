@@ -17,27 +17,13 @@ class PredictionService {
     try {
       let allPredictions = [];
 
-      // Fetch all sports in parallel
       const fetchPromises = [];
-
-      if (!sport || sport === 'football') {
-        fetchPromises.push(footballService.getPredictions());
-      }
-      if (!sport || sport === 'basketball') {
-        fetchPromises.push(basketballService.getPredictions());
-      }
-      if (!sport || sport === 'tennis') {
-        fetchPromises.push(tennisService.getPredictions());
-      }
-      if (!sport || sport === 'volleyball') {
-        fetchPromises.push(volleyballService.getPredictions());
-      }
-      if (!sport || sport === 'tabletennis') {
-        fetchPromises.push(tableTennisService.getPredictions());
-      }
-      if (!sport || sport === 'handball') {
-        fetchPromises.push(handballService.getPredictions());
-      }
+      if (!sport || sport === 'football') fetchPromises.push(footballService.getPredictions());
+      if (!sport || sport === 'basketball') fetchPromises.push(basketballService.getPredictions());
+      if (!sport || sport === 'tennis') fetchPromises.push(tennisService.getPredictions());
+      if (!sport || sport === 'volleyball') fetchPromises.push(volleyballService.getPredictions());
+      if (!sport || sport === 'tabletennis') fetchPromises.push(tableTennisService.getPredictions());
+      if (!sport || sport === 'handball') fetchPromises.push(handballService.getPredictions());
 
       const results = await Promise.allSettled(fetchPromises);
 
@@ -47,13 +33,11 @@ class PredictionService {
         }
       });
 
-      // Filter predictions with 58% probability or higher
-      const filteredPredictions = allPredictions.filter(pred => pred.probability >= 58);
-
-      // Sort by probability (highest first)
+      // Filter predictions with 50% probability or higher
+      const filteredPredictions = allPredictions.filter(pred => pred.probability >= 50);
       const sortedPredictions = filteredPredictions.sort((a, b) => b.probability - a.probability);
 
-      logger.info(`Total predictions: ${allPredictions.length}, Filtered (≥58%): ${filteredPredictions.length}`);
+      logger.info(`Total predictions: ${allPredictions.length}, Filtered (≥50%): ${filteredPredictions.length}`);
 
       this.lastFetchTime = new Date();
       return sortedPredictions;
@@ -66,7 +50,6 @@ class PredictionService {
   async getAllPredictionsUnfiltered() {
     try {
       let allPredictions = [];
-
       const fetchPromises = [
         footballService.getPredictions(),
         basketballService.getPredictions(),
@@ -77,13 +60,11 @@ class PredictionService {
       ];
 
       const results = await Promise.allSettled(fetchPromises);
-
       results.forEach(result => {
         if (result.status === 'fulfilled' && result.value) {
           allPredictions.push(...result.value);
         }
       });
-
       return allPredictions.sort((a, b) => b.probability - a.probability);
     } catch (error) {
       logger.error('Error getting unfiltered predictions:', error);
@@ -104,19 +85,18 @@ class PredictionService {
     return allPredictions;
   }
 
-  async getElitePicks() {
+  async getSafePicks() {
     const allPredictions = await this.getAllPredictions();
-    return allPredictions.filter(pred => pred.probability >= 90);
+    return allPredictions.filter(pred => pred.probability >= 70);
   }
 
   async getBetOfTheDay() {
     const allPredictions = await this.getAllPredictions();
     if (allPredictions.length === 0) return null;
 
-    // Get the highest probability prediction
-    const bestPrediction = allPredictions[0];
+    const safePicks = allPredictions.filter(p => p.probability >= 75);
+    const bestPrediction = safePicks.length > 0 ? safePicks[0] : allPredictions[0];
 
-    // Add bet of the day metadata
     return {
       ...bestPrediction,
       isBetOfTheDay: true,
@@ -128,11 +108,9 @@ class PredictionService {
 
   generateBetOfTheDayReason(prediction) {
     const reasons = [
-      `Highest probability (${prediction.probability}%) across all sports today`,
+      `Highest safe probability (${prediction.probability}%) across all sports today`,
       `Strong statistical backing with excellent form and head-to-head record`,
-      `Market odds provide excellent value compared to calculated probability`,
-      `Multiple factors align: home advantage, recent form, and key player availability`,
-      `Analytics model shows this as the most confident pick of the day`
+      `Multiple factors align: home advantage, recent form, and key player availability`
     ];
     return reasons[Math.floor(Math.random() * reasons.length)];
   }
@@ -146,111 +124,120 @@ class PredictionService {
       const sportPredictions = allPredictions.filter(p => p.sport === sport);
       if (sportPredictions.length > 0) {
         const bestMatch = sportPredictions.reduce((a, b) => a.probability > b.probability ? a : b);
-        matchesOfDay.push({
-          ...bestMatch,
-          isMatchOfTheDay: true
-        });
+        matchesOfDay.push({ ...bestMatch, isMatchOfTheDay: true });
       }
     }
-
     return matchesOfDay;
   }
 
-  async getAccumulatorRecommendations() {
+  async getAllMarkets() {
     const allPredictions = await this.getAllPredictions();
+    const markets = {};
 
-    // Filter for quality selections (65%+ probability, reasonable odds)
-    const candidates = allPredictions.filter(pred => {
+    allPredictions.forEach(pred => {
+      const market = pred.market || 'Match Winner';
+      if (!markets[market]) {
+        markets[market] = [];
+      }
+      markets[market].push(pred);
+    });
+
+    return markets;
+  }
+
+  async getAccumulatorRecommendations() {
+    // Get only football and basketball predictions for accumulators
+    const allPredictions = await this.getAllPredictions();
+    const footballBasketball = allPredictions.filter(pred =>
+      pred.sport === 'Football' || pred.sport === 'Basketball'
+    );
+
+    // Filter for safe picks (65%+ probability for accumulators)
+    const safeCandidates = footballBasketball.filter(pred => {
       const odds = parseFloat(pred.odds);
-      return pred.probability >= 65 && odds >= 1.20 && odds <= 2.50;
+      return pred.probability >= 65 && odds >= 1.20 && odds <= 2.20;
     });
 
-    // Sort by value (probability/odds ratio)
-    const sorted = candidates.sort((a, b) => {
-      const valueA = (a.probability / 100) * parseFloat(a.odds);
-      const valueB = (b.probability / 100) * parseFloat(b.odds);
-      return valueB - valueA;
-    });
+    const sorted = safeCandidates.sort((a, b) => b.probability - a.probability);
 
-    // Build accumulator targeting odds ~3.00
-    const selections = [];
-    let currentOdds = 1;
-    let totalProbability = 1;
+    // Build accumulator for 3 odds (safer - higher probability picks)
+    const selections3 = [];
+    let currentOdds3 = 1;
+    let totalProb3 = 1;
 
     for (const pred of sorted) {
       const odds = parseFloat(pred.odds);
-      const newOdds = currentOdds * odds;
-
-      if (newOdds <= 3.20 && selections.length < 5) {
-        selections.push(pred);
-        currentOdds = newOdds;
-        totalProbability *= (pred.probability / 100);
+      const newOdds = currentOdds3 * odds;
+      if (newOdds <= 3.20 && selections3.length < 4) {
+        selections3.push(pred);
+        currentOdds3 = newOdds;
+        totalProb3 *= (pred.probability / 100);
       }
-
-      if (currentOdds >= 2.80 && currentOdds <= 3.20) break;
+      if (currentOdds3 >= 2.80 && currentOdds3 <= 3.20) break;
     }
 
-    // Calculate potential returns
-    const stake = 1000; // Default stake in KES
-    const potentialReturn = (stake * currentOdds).toFixed(0);
-    const combinedProbability = (totalProbability * 100).toFixed(1);
+    // Build accumulator for 12 odds (moderate risk - still safe picks)
+    const moderateCandidates = footballBasketball.filter(pred => {
+      const odds = parseFloat(pred.odds);
+      return pred.probability >= 60 && odds >= 1.30 && odds <= 3.00;
+    }).sort((a, b) => parseFloat(b.odds) - parseFloat(a.odds));
+
+    const selections12 = [];
+    let currentOdds12 = 1;
+    let totalProb12 = 1;
+
+    for (const pred of moderateCandidates) {
+      const odds = parseFloat(pred.odds);
+      const newOdds = currentOdds12 * odds;
+      if (newOdds <= 13.00 && selections12.length < 6) {
+        selections12.push(pred);
+        currentOdds12 = newOdds;
+        totalProb12 *= (pred.probability / 100);
+      }
+      if (currentOdds12 >= 11.00 && currentOdds12 <= 13.00) break;
+    }
+
+    const stake = 1000; // UGX
 
     return {
-      selections: selections,
-      totalOdds: currentOdds.toFixed(2),
-      selectionsCount: selections.length,
-      stake: stake,
-      potentialReturn: potentialReturn,
-      combinedProbability: combinedProbability,
-      targetOdds: 3.00,
-      isTargetAchieved: currentOdds >= 2.80 && currentOdds <= 3.20,
-      recommendation: this.generateAccumulatorAdvice(selections.length, currentOdds, combinedProbability)
+      accumulator3: {
+        selections: selections3,
+        totalOdds: currentOdds3.toFixed(2),
+        selectionsCount: selections3.length,
+        potentialReturn: (stake * currentOdds3).toFixed(0),
+        combinedProbability: (totalProb3 * 100).toFixed(1),
+        targetOdds: 3.00,
+        stake: stake,
+        currency: 'UGX'
+      },
+      accumulator12: {
+        selections: selections12,
+        totalOdds: currentOdds12.toFixed(2),
+        selectionsCount: selections12.length,
+        potentialReturn: (stake * currentOdds12).toFixed(0),
+        combinedProbability: (totalProb12 * 100).toFixed(1),
+        targetOdds: 12.00,
+        stake: stake,
+        currency: 'UGX'
+      }
     };
-  }
-
-  generateAccumulatorAdvice(selections, odds, probability) {
-    if (selections === 0) {
-      return 'No suitable selections found for accumulator. Try adjusting filters.';
-    }
-    if (odds < 2.8) {
-      return `Add one more selection to reach target odds of 3.00. Current odds: ${odds}`;
-    }
-    if (odds > 3.2) {
-      return `Remove one selection to reduce risk. Current odds: ${odds}`;
-    }
-    return `Excellent accumulator with ${selections} selections. Combined probability: ${probability}%. Good value at odds ${odds}.`;
   }
 
   async getPredictionStats() {
     const allPredictions = await this.getAllPredictions();
-    const eliteCount = allPredictions.filter(p => p.probability >= 90).length;
-    const highCount = allPredictions.filter(p => p.probability >= 75 && p.probability < 90).length;
-    const mediumCount = allPredictions.filter(p => p.probability >= 58 && p.probability < 75).length;
+    const safePicks = allPredictions.filter(p => p.probability >= 70).length;
+
+    const stats = {};
+    allPredictions.forEach(pred => {
+      if (!stats[pred.sport]) stats[pred.sport] = 0;
+      stats[pred.sport]++;
+    });
 
     return {
       total: allPredictions.length,
-      elite: eliteCount,
-      high: highCount,
-      medium: mediumCount,
-      bySport: this.getSportStats(allPredictions)
+      safePicks: safePicks,
+      bySport: stats
     };
-  }
-
-  getSportStats(predictions) {
-    const stats = {};
-    predictions.forEach(pred => {
-      if (!stats[pred.sport]) {
-        stats[pred.sport] = { total: 0, avgProbability: 0 };
-      }
-      stats[pred.sport].total++;
-      stats[pred.sport].avgProbability += pred.probability;
-    });
-
-    Object.keys(stats).forEach(sport => {
-      stats[sport].avgProbability = (stats[sport].avgProbability / stats[sport].total).toFixed(1);
-    });
-
-    return stats;
   }
 
   async getLastFetchTime() {

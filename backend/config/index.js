@@ -16,6 +16,12 @@ module.exports = {
     }
   },
 
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY,
+    model: 'gpt-3.5-turbo',
+    maxTokens: 150
+  },
+
   cache: {
     ttl: parseInt(process.env.CACHE_TTL) || 1800,
     checkPeriod: 600

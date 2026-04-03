@@ -6,7 +6,7 @@ class HandballService {
   async getPredictions() {
     const cacheKey = 'handball_predictions';
     const cached = cacheManager.get(cacheKey);
-    if (cached) return cached;
+    if (cached && cached.length > 0) return cached;
 
     const predictions = await this.fetchRealPredictions();
     if (predictions && predictions.length > 0) {
@@ -19,81 +19,28 @@ class HandballService {
     try {
       const predictions = [];
 
-      // Try multiple handball endpoints
-      const endpoints = [
-        'https://api.the-odds-api.com/v4/sports/handball/odds',
-        'https://api.the-odds-api.com/v4/sports/handball_champions_league/odds',
-        'https://api.the-odds-api.com/v4/sports/handball_euro/odds'
-      ];
+      try {
+        const response = await axios.get('https://api.the-odds-api.com/v4/sports/handball/odds', {
+          params: { apiKey: process.env.THEODDS_API_KEY, regions: 'eu', markets: 'h2h', oddsFormat: 'decimal', dateFormat: 'iso' },
+          timeout: 10000
+        });
 
-      for (const endpoint of endpoints) {
-        try {
-          const response = await axios.get(endpoint, {
-            params: {
-              apiKey: process.env.THEODDS_API_KEY,
-              regions: 'eu',
-              markets: 'h2h',
-              oddsFormat: 'decimal',
-              dateFormat: 'iso'
-            },
-            timeout: 10000
-          });
-
-          if (response.data && response.data.length > 0) {
-            logger.info(`Found ${response.data.length} handball matches`);
-
-            for (const match of response.data.slice(0, 8)) {
-              const analysis = this.analyzeMatch(match);
-              if (analysis) predictions.push(...analysis);
-            }
-            break;
+        if (response.data && response.data.length > 0) {
+          for (const match of response.data.slice(0, 8)) {
+            const analysis = this.analyzeMatch(match);
+            if (analysis) predictions.push(...analysis);
           }
-        } catch (error) {
-          continue;
         }
-      }
+      } catch (error) { }
 
-      // If no real matches, use upcoming schedule
       if (predictions.length === 0) {
-        const upcomingMatches = this.getUpcomingHandballMatches();
-        predictions.push(...upcomingMatches);
+        predictions.push(...this.getUpcomingHandballMatches());
       }
 
-      logger.info(`Generated ${predictions.length} handball predictions`);
       return predictions;
     } catch (error) {
-      logger.error('Handball API error:', error);
-      return this.getSampleHandballMatches();
+      return this.getUpcomingHandballMatches();
     }
-  }
-
-  getUpcomingHandballMatches() {
-    const matches = [];
-    const today = new Date();
-
-    const upcoming = [
-      { home: 'FC Barcelona', away: 'Paris Saint-Germain', league: 'EHF Champions League', date: new Date(today.setHours(19, 45)), prob: 62 },
-      { home: 'THW Kiel', away: 'Veszprém', league: 'EHF Champions League', date: new Date(today.setHours(18, 30)), prob: 54 },
-      { home: 'Aalborg', away: 'Magdeburg', league: 'EHF Champions League', date: new Date(today.setHours(20, 15)), prob: 51 },
-      { home: 'Pick Szeged', away: 'Kielce', league: 'EHF Champions League', date: new Date(today.setHours(17, 0)), prob: 58 }
-    ];
-
-    for (const match of upcoming) {
-      matches.push({
-        market: 'Match Winner',
-        prediction: `${match.home} to win`,
-        probability: match.prob,
-        confidence: match.prob > 60 ? 'High' : 'Medium',
-        odds: (1 / (match.prob / 100)).toFixed(2),
-        homeTeam: match.home,
-        awayTeam: match.away,
-        league: match.league,
-        time: match.date.toLocaleTimeString(),
-        sport: 'Handball'
-      });
-    }
-
-    return matches;
   }
 
   analyzeMatch(match) {
@@ -110,48 +57,51 @@ class HandballService {
       const awayProb = (1 / awayOutcome.price) * 100;
       const total = homeProb + awayProb;
       const homeWinProb = (homeProb / total) * 100;
-      const awayWinProb = (awayProb / total) * 100;
 
-      const highestProb = Math.max(homeWinProb, awayWinProb);
-      const winner = highestProb === homeWinProb ? homeTeam : awayTeam;
-
-      predictions.push({
-        market: 'Match Winner',
-        prediction: `${winner} to win`,
-        probability: Math.round(highestProb),
-        confidence: highestProb > 65 ? 'High' : (highestProb > 55 ? 'Medium' : 'Low'),
-        odds: homeOutcome.price.toFixed(2),
-        homeTeam: homeTeam,
-        awayTeam: awayTeam,
-        league: match.sport_title || 'Handball',
-        time: new Date(match.commence_time).toLocaleTimeString(),
-        sport: 'Handball'
-      });
+      if (homeWinProb >= 50) {
+        predictions.push({
+          market: 'Match Winner',
+          prediction: `${homeTeam} to win`,
+          probability: Math.round(homeWinProb),
+          confidence: this.getConfidenceLevel(homeWinProb),
+          odds: homeOutcome.price.toFixed(2),
+          homeTeam: homeTeam,
+          awayTeam: awayTeam,
+          league: 'Handball',
+          time: new Date(match.commence_time).toLocaleTimeString(),
+          sport: 'Handball'
+        });
+      }
     }
-
     return predictions;
   }
 
-  getSampleHandballMatches() {
+  getUpcomingHandballMatches() {
     const matches = [
-      { home: 'FC Barcelona', away: 'Paris Saint-Germain', league: 'EHF Champions League', prob: 62, time: '19:45' },
-      { home: 'THW Kiel', away: 'Veszprém', league: 'EHF Champions League', prob: 54, time: '18:30' },
-      { home: 'Aalborg', away: 'Magdeburg', league: 'EHF Champions League', prob: 51, time: '20:15' },
-      { home: 'Pick Szeged', away: 'Kielce', league: 'EHF Champions League', prob: 58, time: '17:00' }
+      { home: 'FC Barcelona', away: 'Paris SG', prob: 58, odds: 1.75, time: '19:45' },
+      { home: 'THW Kiel', away: 'Veszprém', prob: 54, odds: 1.85, time: '18:30' }
     ];
 
-    return matches.map(match => ({
+    return matches.map(m => ({
       market: 'Match Winner',
-      prediction: `${match.home} to win`,
-      probability: match.prob,
-      confidence: match.prob > 60 ? 'High' : 'Medium',
-      odds: (1 / (match.prob / 100)).toFixed(2),
-      homeTeam: match.home,
-      awayTeam: match.away,
-      league: match.league,
-      time: match.time,
+      prediction: `${m.home} to win`,
+      probability: m.prob,
+      confidence: m.prob >= 70 ? 'High' : 'Medium',
+      odds: m.odds.toFixed(2),
+      homeTeam: m.home,
+      awayTeam: m.away,
+      league: 'EHF Champions League',
+      time: m.time,
       sport: 'Handball'
     }));
+  }
+
+  getConfidenceLevel(probability) {
+    if (probability >= 80) return 'Very High';
+    if (probability >= 70) return 'High';
+    if (probability >= 60) return 'Medium High';
+    if (probability >= 50) return 'Medium';
+    return 'Low';
   }
 }
 

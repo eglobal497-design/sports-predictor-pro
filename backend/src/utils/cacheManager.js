@@ -1,11 +1,10 @@
 const NodeCache = require('node-cache');
-const config = require('../config');
 
 class CacheManager {
   constructor() {
     this.cache = new NodeCache({
-      stdTTL: config.cache.ttl,
-      checkperiod: config.cache.checkPeriod
+      stdTTL: 1800,
+      checkperiod: 600
     });
   }
 
@@ -13,7 +12,7 @@ class CacheManager {
     return this.cache.get(key);
   }
 
-  set(key, value, ttl = config.cache.ttl) {
+  set(key, value, ttl = 1800) {
     this.cache.set(key, value, ttl);
   }
 

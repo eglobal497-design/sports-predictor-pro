@@ -11,14 +11,8 @@ class InsightsService {
 
     try {
       const predictions = await predictionService.getAllPredictions();
-
-      if (predictions.length === 0) {
-        return ['No predictions available for today. Check back later for insights.'];
-      }
-
       const insights = await aiHelper.generateInsights(predictions);
-      cacheManager.set(cacheKey, insights, 3600); // Cache for 1 hour
-
+      cacheManager.set(cacheKey, insights, 3600);
       return insights;
     } catch (error) {
       logger.error('Error generating insights:', error);

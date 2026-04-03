@@ -12,13 +12,16 @@ class Database {
   async initialize() {
     if (this.initialized) return this.db;
 
-    // Use SQLite (works on Render free tier)
-    const dbPath = process.env.DATABASE_URL || './data/predictions.db';
+    // Use in-memory database for Render free tier (ephemeral storage)
+    // Change to file-based if you have persistent storage
+    const isProduction = process.env.NODE_ENV === 'production';
+    const dbPath = isProduction ? ':memory:' : path.join(__dirname, '../../data/predictions.db');
 
-    // Ensure data directory exists
-    const dataDir = path.dirname(dbPath);
-    if (!fs.existsSync(dataDir) && !dbPath.includes('memory')) {
-      fs.mkdirSync(dataDir, { recursive: true });
+    if (!isProduction) {
+      const dataDir = path.dirname(dbPath);
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
     }
 
     this.db = await open({
@@ -28,6 +31,7 @@ class Database {
 
     await this.createTables();
     this.initialized = true;
+    logger.info(`Database connected: ${dbPath === ':memory:' ? 'in-memory' : dbPath}`);
 
     return this.db;
   }
@@ -48,22 +52,12 @@ class Database {
         actual_result TEXT,
         correct BOOLEAN,
         explanation TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
       
       CREATE INDEX IF NOT EXISTS idx_match_time ON predictions(match_time);
       CREATE INDEX IF NOT EXISTS idx_sport ON predictions(sport);
-      
-      CREATE TABLE IF NOT EXISTS accuracy_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        date DATE NOT NULL,
-        sport TEXT,
-        total_predictions INTEGER,
-        correct_predictions INTEGER,
-        accuracy REAL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
+      CREATE INDEX IF NOT EXISTS idx_correct ON predictions(correct);
     `);
   }
 
@@ -108,7 +102,7 @@ class Database {
       SELECT 
         COUNT(*) as total,
         SUM(CASE WHEN correct = 1 THEN 1 ELSE 0 END) as correct,
-        ROUND(CAST(SUM(CASE WHEN correct = 1 THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*) * 100, 2) as accuracy
+        ROUND(CAST(SUM(CASE WHEN correct = 1 THEN 1 ELSE 0 END) AS FLOAT) / NULLIF(COUNT(*), 0) * 100, 2) as accuracy
       FROM predictions
       WHERE correct IS NOT NULL
     `);
@@ -118,13 +112,39 @@ class Database {
         sport,
         COUNT(*) as total,
         SUM(CASE WHEN correct = 1 THEN 1 ELSE 0 END) as correct,
-        ROUND(CAST(SUM(CASE WHEN correct = 1 THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*) * 100, 2) as accuracy
+        ROUND(CAST(SUM(CASE WHEN correct = 1 THEN 1 ELSE 0 END) AS FLOAT) / NULLIF(COUNT(*), 0) * 100, 2) as accuracy
       FROM predictions
       WHERE correct IS NOT NULL
       GROUP BY sport
     `);
 
-    return { overall, bySport };
+    const byConfidence = await db.all(`
+      SELECT 
+        confidence,
+        COUNT(*) as total,
+        SUM(CASE WHEN correct = 1 THEN 1 ELSE 0 END) as correct,
+        ROUND(CAST(SUM(CASE WHEN correct = 1 THEN 1 ELSE 0 END) AS FLOAT) / NULLIF(COUNT(*), 0) * 100, 2) as accuracy
+      FROM predictions
+      WHERE correct IS NOT NULL
+      GROUP BY confidence
+    `);
+
+    return {
+      overall: overall || { total: 0, correct: 0, accuracy: 0 },
+      bySport: bySport || [],
+      byConfidence: byConfidence || []
+    };
+  }
+
+  async getRecentPredictions(limit = 100) {
+    const db = await this.initialize();
+
+    return await db.all(`
+      SELECT * FROM predictions 
+      WHERE correct IS NOT NULL
+      ORDER BY match_time DESC 
+      LIMIT ?
+    `, limit);
   }
 }
 

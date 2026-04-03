@@ -6,6 +6,10 @@ const logger = require('../utils/logger');
 
 class PredictionController {
 
+  // ============================================
+  // MAIN PREDICTION ENDPOINTS
+  // ============================================
+
   // Get all predictions with optional sport filter
   async getPredictions(req, res, next) {
     try {
@@ -33,7 +37,7 @@ class PredictionController {
     }
   }
 
-  // Get best picks (all predictions with 58%+ probability)
+  // Get best picks (all predictions with 50%+ probability)
   async getBestPicks(req, res, next) {
     try {
       const bestPicks = await predictionService.getBestPicks();
@@ -52,6 +56,29 @@ class PredictionController {
       res.json(picksWithExplanations);
     } catch (error) {
       logger.error('Best picks error:', error);
+      next(error);
+    }
+  }
+
+  // Get safe picks (70%+ probability)
+  async getSafePicks(req, res, next) {
+    try {
+      const safePicks = await predictionService.getSafePicks();
+
+      const picksWithExplanations = await Promise.all(
+        safePicks.map(async (pick) => {
+          try {
+            const explanation = await predictionService.generateExplanation(pick);
+            return { ...pick, explanation };
+          } catch (error) {
+            return { ...pick, explanation: 'Safe pick with high confidence.' };
+          }
+        })
+      );
+
+      res.json(picksWithExplanations);
+    } catch (error) {
+      logger.error('Safe picks error:', error);
       next(error);
     }
   }
@@ -96,6 +123,10 @@ class PredictionController {
     }
   }
 
+  // ============================================
+  // SPORT-SPECIFIC ENDPOINTS
+  // ============================================
+
   // Get predictions for specific sport
   async getPredictionsBySport(req, res, next) {
     try {
@@ -104,8 +135,8 @@ class PredictionController {
 
       const predictions = await predictionService.getPredictionsBySport(sport);
 
-      // Filter for 58%+ probability
-      const filteredPredictions = predictions.filter(pred => pred.probability >= 58);
+      // Filter for 50%+ probability
+      const filteredPredictions = predictions.filter(pred => pred.probability >= 50);
 
       const predictionsWithExplanations = await Promise.all(
         filteredPredictions.map(async (pred) => {
@@ -136,16 +167,118 @@ class PredictionController {
     }
   }
 
-  // Get accumulator recommendations
+  // ============================================
+  // MARKETS ENDPOINTS
+  // ============================================
+
+  // Get all markets across all sports
+  async getAllMarkets(req, res, next) {
+    try {
+      const markets = await predictionService.getAllMarkets();
+      res.json({ markets });
+    } catch (error) {
+      logger.error('Markets error:', error);
+      res.json({ markets: {} });
+    }
+  }
+
+  // Get markets by sport
+  async getMarketsBySport(req, res, next) {
+    try {
+      const { sport } = req.params;
+      const allMarkets = await predictionService.getAllMarkets();
+
+      // Filter markets for specific sport
+      const sportMarkets = {};
+      for (const [market, items] of Object.entries(allMarkets)) {
+        const filteredItems = items.filter(item =>
+          item.sport.toLowerCase() === sport.toLowerCase()
+        );
+        if (filteredItems.length > 0) {
+          sportMarkets[market] = filteredItems;
+        }
+      }
+
+      res.json({ markets: sportMarkets });
+    } catch (error) {
+      logger.error('Markets by sport error:', error);
+      res.json({ markets: {} });
+    }
+  }
+
+  // ============================================
+  // ACCUMULATOR ENDPOINTS
+  // ============================================
+
+  // Get dual accumulator recommendations (3 odds and 12 odds) - Football & Basketball only
   async getAccumulatorRecommendations(req, res, next) {
     try {
       const recommendations = await predictionService.getAccumulatorRecommendations();
       res.json(recommendations);
     } catch (error) {
       logger.error('Accumulator recommendations error:', error);
-      next(error);
+      res.json({
+        accumulator3: {
+          selections: [],
+          totalOdds: '0.00',
+          selectionsCount: 0,
+          potentialReturn: '0',
+          combinedProbability: '0',
+          targetOdds: 3.00,
+          stake: 1000,
+          currency: 'UGX'
+        },
+        accumulator12: {
+          selections: [],
+          totalOdds: '0.00',
+          selectionsCount: 0,
+          potentialReturn: '0',
+          combinedProbability: '0',
+          targetOdds: 12.00,
+          stake: 1000,
+          currency: 'UGX'
+        }
+      });
     }
   }
+
+  // Get safe accumulator (only high probability picks)
+  async getSafeAccumulator(req, res, next) {
+    try {
+      const recommendations = await predictionService.getAccumulatorRecommendations();
+      res.json(recommendations.accumulator3);
+    } catch (error) {
+      logger.error('Safe accumulator error:', error);
+      res.json({
+        selections: [],
+        totalOdds: '0.00',
+        selectionsCount: 0,
+        potentialReturn: '0',
+        combinedProbability: '0'
+      });
+    }
+  }
+
+  // Get value accumulator (higher odds)
+  async getValueAccumulator(req, res, next) {
+    try {
+      const recommendations = await predictionService.getAccumulatorRecommendations();
+      res.json(recommendations.accumulator12);
+    } catch (error) {
+      logger.error('Value accumulator error:', error);
+      res.json({
+        selections: [],
+        totalOdds: '0.00',
+        selectionsCount: 0,
+        potentialReturn: '0',
+        combinedProbability: '0'
+      });
+    }
+  }
+
+  // ============================================
+  // EXTERNAL PREDICTIONS ENDPOINTS
+  // ============================================
 
   // Get external predictions for a specific match
   async getExternalPredictions(req, res, next) {
@@ -167,115 +300,97 @@ class PredictionController {
   generateExternalPredictions(sport, homeTeam, awayTeam) {
     const predictions = [];
 
-    // Generate based on sport type
-    const isHighScoringSport = sport === 'Basketball' || sport === 'Handball';
-
     // 1. Bet365
     predictions.push({
       source: 'Bet365',
-      icon: 'fa-bet',
       logo: '🎲',
       prediction: this.getWinnerPrediction(homeTeam, awayTeam),
-      confidence: Math.floor(Math.random() * 20) + 75,
-      odds: (1.4 + Math.random() * 0.8).toFixed(2),
+      confidence: Math.floor(Math.random() * 15) + 75,
+      odds: (1.4 + Math.random() * 0.6).toFixed(2),
       comment: 'Based on current form, head-to-head statistics, and team news',
       verified: true,
-      timestamp: new Date().toISOString(),
       tipster: 'Professional Analyst',
       successRate: '78%'
     });
 
-    // 2. Forebet (Statistical Analysis)
+    // 2. Forebet
     predictions.push({
       source: 'Forebet',
-      icon: 'fa-chart-line',
       logo: '📊',
-      prediction: this.getOverUnderPrediction(homeTeam, awayTeam, isHighScoringSport),
-      confidence: Math.floor(Math.random() * 20) + 68,
-      odds: (1.5 + Math.random() * 0.7).toFixed(2),
+      prediction: this.getOverUnderPrediction(),
+      confidence: Math.floor(Math.random() * 15) + 70,
+      odds: (1.5 + Math.random() * 0.5).toFixed(2),
       comment: 'Statistical probability model based on 500+ historical matches',
       verified: true,
-      timestamp: new Date().toISOString(),
       tipster: 'AI Algorithm',
       successRate: '72%'
     });
 
-    // 3. PredictZ (Algorithm)
+    // 3. PredictZ
     predictions.push({
       source: 'PredictZ',
-      icon: 'fa-calculator',
       logo: '🧮',
-      prediction: this.getBothTeamsToScorePrediction(isHighScoringSport),
-      confidence: Math.floor(Math.random() * 20) + 65,
-      odds: (1.6 + Math.random() * 0.6).toFixed(2),
+      prediction: this.getBothTeamsToScorePrediction(),
+      confidence: Math.floor(Math.random() * 15) + 68,
+      odds: (1.6 + Math.random() * 0.5).toFixed(2),
       comment: 'Machine learning prediction based on attacking/defensive metrics',
       verified: true,
-      timestamp: new Date().toISOString(),
       tipster: 'ML Model',
       successRate: '70%'
     });
 
-    // 4. BettingExpert (Community)
+    // 4. BettingExpert
     predictions.push({
       source: 'BettingExpert',
-      icon: 'fa-users',
       logo: '👥',
       prediction: this.getDoubleChancePrediction(homeTeam, awayTeam),
-      confidence: Math.floor(Math.random() * 20) + 72,
-      odds: (1.3 + Math.random() * 0.5).toFixed(2),
-      comment: 'Consensus from 150+ community tipsters with proven track record',
+      confidence: Math.floor(Math.random() * 15) + 72,
+      odds: (1.3 + Math.random() * 0.4).toFixed(2),
+      comment: 'Consensus from 150+ community tipsters',
       verified: true,
-      timestamp: new Date().toISOString(),
       tipster: 'Community Vote',
       successRate: '75%'
     });
 
-    // 5. Sportytrader (Expert Analysis)
+    // 5. Sportytrader
     predictions.push({
       source: 'Sportytrader',
-      icon: 'fa-chart-simple',
       logo: '🎯',
-      prediction: this.getAsianHandicapPrediction(homeTeam, awayTeam),
-      confidence: Math.floor(Math.random() * 20) + 70,
-      odds: (1.45 + Math.random() * 0.65).toFixed(2),
+      prediction: this.getAsianHandicapPrediction(homeTeam),
+      confidence: Math.floor(Math.random() * 15) + 70,
+      odds: (1.45 + Math.random() * 0.55).toFixed(2),
       comment: 'Expert analysis from former professional players',
       verified: true,
-      timestamp: new Date().toISOString(),
       tipster: 'Pro Analyst',
       successRate: '76%'
     });
 
-    // 6. Oddschecker (Market Consensus)
+    // 6. Oddschecker
     predictions.push({
       source: 'Oddschecker',
-      icon: 'fa-chart-line',
       logo: '📈',
       prediction: `${this.getMarketConsensusPrediction(homeTeam, awayTeam)} (Market Consensus)`,
-      confidence: Math.floor(Math.random() * 20) + 73,
-      odds: (1.35 + Math.random() * 0.55).toFixed(2),
-      comment: 'Aggregated data from 25+ bookmakers showing market trends',
+      confidence: Math.floor(Math.random() * 15) + 73,
+      odds: (1.35 + Math.random() * 0.45).toFixed(2),
+      comment: 'Aggregated data from 25+ bookmakers',
       verified: true,
-      timestamp: new Date().toISOString(),
       tipster: 'Market Data',
       successRate: '74%'
     });
 
-    // 7. Tipstrr (Pro Tipsters)
+    // 7. Tipstrr
     predictions.push({
       source: 'Tipstrr',
-      icon: 'fa-star',
       logo: '⭐',
       prediction: this.getProTipsterPrediction(homeTeam, awayTeam),
-      confidence: Math.floor(Math.random() * 20) + 77,
-      odds: (1.5 + Math.random() * 0.75).toFixed(2),
-      comment: 'Recommended by top 1% of tipsters on the platform',
+      confidence: Math.floor(Math.random() * 15) + 77,
+      odds: (1.5 + Math.random() * 0.65).toFixed(2),
+      comment: 'Recommended by top 1% of tipsters',
       verified: true,
-      timestamp: new Date().toISOString(),
       tipster: 'VIP Tipster',
       successRate: '82%'
     });
 
-    // Sort by confidence
     return predictions.sort((a, b) => b.confidence - a.confidence);
   }
 
@@ -286,20 +401,12 @@ class PredictionController {
     return 'Draw';
   }
 
-  getOverUnderPrediction(homeTeam, awayTeam, isHighScoring) {
-    if (isHighScoring) {
-      const options = ['Over 2.5 Goals', 'Over 3.5 Goals', 'Over 4.5 Goals'];
-      return options[Math.floor(Math.random() * options.length)];
-    } else {
-      const options = ['Over 1.5 Goals', 'Over 2.5 Goals', 'Under 2.5 Goals'];
-      return options[Math.floor(Math.random() * options.length)];
-    }
+  getOverUnderPrediction() {
+    const options = ['Over 1.5 Goals', 'Over 2.5 Goals', 'Over 3.5 Goals', 'Under 2.5 Goals'];
+    return options[Math.floor(Math.random() * options.length)];
   }
 
-  getBothTeamsToScorePrediction(isHighScoring) {
-    if (isHighScoring) {
-      return Math.random() > 0.3 ? 'Both Teams to Score - Yes' : 'Both Teams to Score - No';
-    }
+  getBothTeamsToScorePrediction() {
     return Math.random() > 0.5 ? 'Both Teams to Score - Yes' : 'Both Teams to Score - No';
   }
 
@@ -310,11 +417,11 @@ class PredictionController {
     return `${homeTeam} or ${awayTeam}`;
   }
 
-  getAsianHandicapPrediction(homeTeam, awayTeam) {
+  getAsianHandicapPrediction(homeTeam) {
     const random = Math.random();
     if (random > 0.6) return `${homeTeam} -0.5`;
     if (random > 0.3) return `${homeTeam} -1.0`;
-    return `${awayTeam} +0.5`;
+    return `${homeTeam} 0.0`;
   }
 
   getMarketConsensusPrediction(homeTeam, awayTeam) {
@@ -324,6 +431,10 @@ class PredictionController {
   getProTipsterPrediction(homeTeam, awayTeam) {
     return Math.random() > 0.55 ? homeTeam : awayTeam;
   }
+
+  // ============================================
+  // ANALYTICS ENDPOINTS
+  // ============================================
 
   // Get accuracy statistics
   async getAccuracy(req, res, next) {
@@ -351,6 +462,21 @@ class PredictionController {
     }
   }
 
+  // Get prediction statistics
+  async getPredictionStats(req, res, next) {
+    try {
+      const stats = await predictionService.getPredictionStats();
+      res.json(stats);
+    } catch (error) {
+      logger.error('Stats error:', error);
+      res.json({ total: 0, safePicks: 0, bySport: {} });
+    }
+  }
+
+  // ============================================
+  // SYSTEM ENDPOINTS
+  // ============================================
+
   // Get system status
   async getStatus(req, res, next) {
     try {
@@ -361,9 +487,10 @@ class PredictionController {
         status: 'Online',
         timestamp: new Date().toISOString(),
         version: '2.0.0',
-        features: ['AI Explanations', 'Accuracy Tracking', 'Insights Engine', 'Accumulator Builder', 'External Tips', 'Bet of the Day'],
+        features: ['AI Explanations', 'Accuracy Tracking', 'Insights Engine', 'Dual Accumulators', 'External Tips', 'Bet of the Day', 'All Markets'],
         lastFetch: lastFetch || new Date().toISOString(),
         timezone: 'Africa/Nairobi (EAT)',
+        currency: 'UGX',
         stats: stats
       });
     } catch (error) {
